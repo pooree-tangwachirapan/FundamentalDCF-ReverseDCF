@@ -69,7 +69,7 @@ if fetch_button and ticker_input:
             
             # Get info with error handling
             try:
-                info = stock.info
+                info = stock.fast_info
             except:
                 info = {}
             
@@ -82,15 +82,15 @@ if fetch_button and ticker_input:
             # Extract key metrics with fallbacks
             stock_data = {
                 'ticker': ticker_input,
-                'current_price': current_price if current_price > 0 else fast_info.get('currentPrice', fast_info.get('regularMarketPrice', 0)),
-                'shares_outstanding': fast_info.get('sharesOutstanding', 0),
-                'market_cap': fast_info.get('marketCap', 0),
+                'current_price': current_price if current_price > 0 else info.get('currentPrice', info.get('regularMarketPrice', 0)),
+                'shares_outstanding': info.get('sharesOutstanding', 0),
+                'market_cap': info.get('marketCap', 0),
                 'free_cash_flow': 0,
-                'revenue': fast_info.get('totalRevenue', 0),
-                'net_income': fast_info.get('netIncome', 0),
-                'total_debt': fast_info.get('totalDebt', 0),
-                'cash': fast_info.get('totalCash', 0),
-                'company_name': fast_info.get('longName', ticker_input)
+                'revenue': info.get('totalRevenue', 0),
+                'net_income': info.get('netIncome', 0),
+                'total_debt': info.get('totalDebt', 0),
+                'cash': info.get('totalCash', 0),
+                'company_name': info.get('longName', ticker_input)
             }
             
             # Try to get Free Cash Flow
@@ -536,4 +536,3 @@ st.markdown("""
         <p>⚠️ This tool is for educational purposes only. Not financial advice. Always do your own research.</p>
     </div>
 """, unsafe_allow_html=True)
-
