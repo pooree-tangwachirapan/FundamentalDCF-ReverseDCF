@@ -82,15 +82,16 @@ if fetch_button and ticker_input:
             # Extract key metrics with fallbacks
             stock_data = {
                 'ticker': ticker_input,
-                'current_price': current_price if current_price > 0 else info.get('currentPrice', info.get('regularMarketPrice', 0)),
-                'shares_outstanding': info.get('sharesOutstanding', 0),
-                'market_cap': info.get('marketCap', 0),
+                'current_price': current_price if current_price > 0 else info.get('currentPrice', info.get('regularMarketPrice', 0)) if isinstance(info, dict) else info.last_price,
+                # แก้ไขตรงนี้: ดึง shares จาก EquityQuery (fast_info.shares)
+                'shares_outstanding': info.shares if hasattr(info, 'shares') else 0,
+                'market_cap': info.market_cap if hasattr(info, 'market_cap') else 0,
                 'free_cash_flow': 0,
-                'revenue': info.get('totalRevenue', 0),
-                'net_income': info.get('netIncome', 0),
-                'total_debt': info.get('totalDebt', 0),
-                'cash': info.get('totalCash', 0),
-                'company_name': info.get('longName', ticker_input)
+                'revenue': 0, # fast_info ไม่มี revenue ต้องดึงวิธีอื่นหรือปล่อย 0 ไว้ก่อนตามคำสั่งห้ามแก้ส่วนอื่น
+                'net_income': 0,
+                'total_debt': 0,
+                'cash': 0,
+                'company_name': ticker_input
             }
             
             # Try to get Free Cash Flow
@@ -106,13 +107,13 @@ if fetch_button and ticker_input:
                     pass
             
             # Validate we got minimum required data
-            if stock_data['current_price'] == 0 :#or stock_data['shares_outstanding'] == 0:
+            if stock_data['current_price'] == 0:
                 st.error("❌ Could not fetch complete data. The ticker might be invalid or Yahoo Finance is rate limiting.")
                 st.info("💡 **Tips to avoid rate limits:**\n"
-                       "- Wait 1-2 minutes before trying again\n"
-                       "- Try a different ticker\n"
-                       "- Use well-known tickers (AAPL, MSFT, GOOGL, NVDA)\n"
-                       "- Or manually enter data below:")
+                        "- Wait 1-2 minutes before trying again\n"
+                        "- Try a different ticker\n"
+                        "- Use well-known tickers (AAPL, MSFT, GOOGL, NVDA)\n"
+                        "- Or manually enter data below:")
                 
                 # Manual input option
                 with st.expander("📝 Enter Data Manually"):
@@ -146,11 +147,11 @@ if fetch_button and ticker_input:
             if "429" in error_msg or "Rate" in error_msg or "Too Many" in error_msg:
                 st.error("❌ Yahoo Finance Rate Limit Reached")
                 st.warning("⏰ **Please wait 1-2 minutes** before fetching data again.\n\n"
-                          "Yahoo Finance limits the number of requests. This is common when many users access the same data.")
+                           "Yahoo Finance limits the number of requests. This is common when many users access the same data.")
                 st.info("💡 **Alternative Options:**\n"
-                       "1. Wait a few minutes and try again\n"
-                       "2. Try a different, less popular ticker\n"
-                       "3. Use the manual data entry below")
+                        "1. Wait a few minutes and try again\n"
+                        "2. Try a different ticker\n"
+                        "3. Use the manual data entry below")
                 
                 # Manual input option
                 with st.expander("📝 Enter Data Manually"):
@@ -307,7 +308,7 @@ if st.session_state.stock_data:
                 st.dataframe(df_display, use_container_width=True)
                 
                 st.info(f"💡 **Interpretation**: The market is pricing in an annual FCF growth rate of **{implied_growth:.2f}%** "
-                       f"for the next 5 years to justify the current price of **${current_price:.2f}**")
+                        f"for the next 5 years to justify the current price of **${current_price:.2f}**")
     
     # ==================== FUNDAMENTAL DCF ====================
     with tab2:
@@ -536,6 +537,3 @@ st.markdown("""
         <p>⚠️ This tool is for educational purposes only. Not financial advice. Always do your own research.</p>
     </div>
 """, unsafe_allow_html=True)
-
-
-
