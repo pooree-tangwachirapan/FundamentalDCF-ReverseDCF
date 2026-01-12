@@ -67,52 +67,33 @@ if fetch_button and ticker_input:
             except:
                 current_price = 0
             
-            # Get info with error handling (Fast Info)
+            # Get info with error handling
             try:
                 info = stock.fast_info
             except:
                 info = {}
             
-            # Get financial data (Cashflow & Income Statement)
+            # Get financial data with error handling
             try:
                 cashflow = stock.cashflow
-                financials = stock.financials  # เพิ่ม: ดึงงบกำไรขาดทุนเพื่อหา Revenue
             except:
                 cashflow = pd.DataFrame()
-                financials = pd.DataFrame()
             
-            # Extract Revenue from financials
-            revenue = 0
-            if not financials.empty:
-                try:
-                    # พยายามหา Key ที่เป็น Total Revenue
-                    if 'Total Revenue' in financials.index:
-                        revenue = financials.loc['Total Revenue'].iloc[0]
-                    elif 'Operating Revenue' in financials.index:
-                        revenue = financials.loc['Operating Revenue'].iloc[0]
-                except:
-                    pass
-
             # Extract key metrics with fallbacks
             stock_data = {
                 'ticker': ticker_input,
                 'current_price': current_price if current_price > 0 else info.get('currentPrice', info.get('regularMarketPrice', 0)) if isinstance(info, dict) else info.last_price,
+                # แก้ไขตรงนี้: ดึง shares จาก EquityQuery (fast_info.shares)
                 'shares_outstanding': info.shares if hasattr(info, 'shares') else 0,
                 'market_cap': info.market_cap if hasattr(info, 'market_cap') else 0,
                 'free_cash_flow': 0,
-                'revenue': revenue, # แก้ไข: ใช้ค่า revenue ที่ดึงจาก financials
+                'revenue': 0, # fast_info ไม่มี revenue ต้องดึงวิธีอื่นหรือปล่อย 0 ไว้ก่อนตามคำสั่งห้ามแก้ส่วนอื่น
                 'net_income': 0,
                 'total_debt': 0,
                 'cash': 0,
                 'company_name': ticker_input
             }
             
-            
-        except Exception as e:
-             # ... (ส่วน Error Exception เดิม ไม่มีการแก้ไข) ...
-             st.error(f"❌ Error fetching data: {error_msg}")
-
-        
             # Try to get Free Cash Flow
             if not cashflow.empty:
                 try:
