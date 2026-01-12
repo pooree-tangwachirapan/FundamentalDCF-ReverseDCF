@@ -69,7 +69,7 @@ if fetch_button and ticker_input:
             
             # Get info with error handling
             try:
-                info = stock.fast_info
+                info = stock.info
             except:
                 info = {}
             
@@ -536,4 +536,5 @@ st.markdown("""
         <p>⚠️ This tool is for educational purposes only. Not financial advice. Always do your own research.</p>
     </div>
 """, unsafe_allow_html=True)
+
 
