@@ -38,7 +38,7 @@ with st.sidebar:
     
     st.markdown("---")
     st.markdown("### About")
-    st.fast_info("This tool provides two DCF analysis methods:\n\n"
+    st.info("This tool provides two DCF analysis methods:\n\n"
             "**Reverse DCF**: Calculate implied growth rate from current price\n\n"
             "**Fundamental DCF**: Calculate intrinsic value from projections")
     
@@ -67,11 +67,11 @@ if fetch_button and ticker_input:
             except:
                 current_price = 0
             
-            # Get fast_info with error handling
+            # Get info with error handling
             try:
-                fast_info = stock.fast_info
+                info = stock.fast_info
             except:
-                fast_info = {}
+                info = {}
             
             # Get financial data with error handling
             try:
@@ -82,15 +82,15 @@ if fetch_button and ticker_input:
             # Extract key metrics with fallbacks
             stock_data = {
                 'ticker': ticker_input,
-                'current_price': current_price if current_price > 0 else fast_info.get('currentPrice', fast_info.get('regularMarketPrice', 0)),
-                'shares_outstanding': fast_info.get('sharesOutstanding', 0),
-                'market_cap': fast_info.get('marketCap', 0),
+                'current_price': current_price if current_price > 0 else info.get('currentPrice', info.get('regularMarketPrice', 0)),
+                'shares_outstanding': info.get('sharesOutstanding', 0),
+                'market_cap': info.get('marketCap', 0),
                 'free_cash_flow': 0,
-                'revenue': fast_info.get('totalRevenue', 0),
-                'net_income': fast_info.get('netIncome', 0),
-                'total_debt': fast_info.get('totalDebt', 0),
-                'cash': fast_info.get('totalCash', 0),
-                'company_name': fast_info.get('longName', ticker_input)
+                'revenue': info.get('totalRevenue', 0),
+                'net_income': info.get('netIncome', 0),
+                'total_debt': info.get('totalDebt', 0),
+                'cash': info.get('totalCash', 0),
+                'company_name': info.get('longName', ticker_input)
             }
             
             # Try to get Free Cash Flow
@@ -108,7 +108,7 @@ if fetch_button and ticker_input:
             # Validate we got minimum required data
             if stock_data['current_price'] == 0 or stock_data['shares_outstanding'] == 0:
                 st.error("❌ Could not fetch complete data. The ticker might be invalid or Yahoo Finance is rate limiting.")
-                st.fast_info("💡 **Tips to avoid rate limits:**\n"
+                st.info("💡 **Tips to avoid rate limits:**\n"
                        "- Wait 1-2 minutes before trying again\n"
                        "- Try a different ticker\n"
                        "- Use well-known tickers (AAPL, MSFT, GOOGL, NVDA)\n"
@@ -147,7 +147,7 @@ if fetch_button and ticker_input:
                 st.error("❌ Yahoo Finance Rate Limit Reached")
                 st.warning("⏰ **Please wait 1-2 minutes** before fetching data again.\n\n"
                           "Yahoo Finance limits the number of requests. This is common when many users access the same data.")
-                st.fast_info("💡 **Alternative Options:**\n"
+                st.info("💡 **Alternative Options:**\n"
                        "1. Wait a few minutes and try again\n"
                        "2. Try a different, less popular ticker\n"
                        "3. Use the manual data entry below")
@@ -178,7 +178,7 @@ if fetch_button and ticker_input:
                         st.rerun()
             else:
                 st.error(f"❌ Error fetching data: {error_msg}")
-                st.fast_info("Please check the ticker symbol and try again.")
+                st.info("Please check the ticker symbol and try again.")
 
 # Display stock data if available
 if st.session_state.stock_data:
@@ -306,7 +306,7 @@ if st.session_state.stock_data:
                 df_display['Projected FCF'] = df_display['Projected FCF'].apply(lambda x: f"${x:.2f}B")
                 st.dataframe(df_display, use_container_width=True)
                 
-                st.fast_info(f"💡 **Interpretation**: The market is pricing in an annual FCF growth rate of **{implied_growth:.2f}%** "
+                st.info(f"💡 **Interpretation**: The market is pricing in an annual FCF growth rate of **{implied_growth:.2f}%** "
                        f"for the next 5 years to justify the current price of **${current_price:.2f}**")
     
     # ==================== FUNDAMENTAL DCF ====================
@@ -424,7 +424,7 @@ if st.session_state.stock_data:
                 if upside > 20:
                     st.success(f"🎯 **Strong Buy Signal**: Stock appears undervalued by {upside:.1f}%")
                 elif upside > 0:
-                    st.fast_info(f"📊 **Potential Buy**: Stock appears undervalued by {upside:.1f}%")
+                    st.info(f"📊 **Potential Buy**: Stock appears undervalued by {upside:.1f}%")
                 elif upside > -20:
                     st.warning(f"⚠️ **Hold**: Stock appears fairly valued (within ±20%)")
                 else:
@@ -494,7 +494,7 @@ if st.session_state.stock_data:
                     st.metric("PV of Terminal Value", f"${pv_terminal/1e9:.2f}B")
 
 else:
-    st.fast_info("👈 Enter a stock ticker in the sidebar and click 'Fetch Data' to begin")
+    st.info("👈 Enter a stock ticker in the sidebar and click 'Fetch Data' to begin")
     
     # Example section
     st.markdown("---")
