@@ -55,7 +55,7 @@ if fetch_button and ticker_input:
             import time
             
             # Add delay to avoid rate limiting
-            time.sleep(1)
+            time.sleep(2)
             
             # Create ticker with session for better rate limit handling
             stock = yf.Ticker(ticker_input)
@@ -536,3 +536,4 @@ st.markdown("""
         <p>⚠️ This tool is for educational purposes only. Not financial advice. Always do your own research.</p>
     </div>
 """, unsafe_allow_html=True)
+
