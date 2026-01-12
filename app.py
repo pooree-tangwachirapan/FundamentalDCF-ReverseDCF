@@ -106,7 +106,7 @@ if fetch_button and ticker_input:
                     pass
             
             # Validate we got minimum required data
-            if stock_data['current_price'] == 0 or stock_data['shares_outstanding'] == 0:
+            if stock_data['current_price'] == 0 :#or stock_data['shares_outstanding'] == 0:
                 st.error("❌ Could not fetch complete data. The ticker might be invalid or Yahoo Finance is rate limiting.")
                 st.info("💡 **Tips to avoid rate limits:**\n"
                        "- Wait 1-2 minutes before trying again\n"
@@ -536,3 +536,4 @@ st.markdown("""
         <p>⚠️ This tool is for educational purposes only. Not financial advice. Always do your own research.</p>
     </div>
 """, unsafe_allow_html=True)
+
