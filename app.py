@@ -52,17 +52,37 @@ if 'stock_data' not in st.session_state:
 if fetch_button and ticker_input:
     with st.spinner(f"Fetching data for {ticker_input}..."):
         try:
+            import time
+            
+            # Add delay to avoid rate limiting
+            time.sleep(1)
+            
+            # Create ticker with session for better rate limit handling
             stock = yf.Ticker(ticker_input)
-            info = stock.info
             
-            # Get financial data
-            cashflow = stock.cashflow
-            balance_sheet = stock.balance_sheet
+            # Try to get current price first (fastest endpoint)
+            try:
+                hist = stock.history(period="1d")
+                current_price = hist['Close'].iloc[-1] if not hist.empty else 0
+            except:
+                current_price = 0
             
-            # Extract key metrics
+            # Get info with error handling
+            try:
+                info = stock.info
+            except:
+                info = {}
+            
+            # Get financial data with error handling
+            try:
+                cashflow = stock.cashflow
+            except:
+                cashflow = pd.DataFrame()
+            
+            # Extract key metrics with fallbacks
             stock_data = {
                 'ticker': ticker_input,
-                'current_price': info.get('currentPrice', info.get('regularMarketPrice', 0)),
+                'current_price': current_price if current_price > 0 else info.get('currentPrice', info.get('regularMarketPrice', 0)),
                 'shares_outstanding': info.get('sharesOutstanding', 0),
                 'market_cap': info.get('marketCap', 0),
                 'free_cash_flow': 0,
@@ -75,19 +95,90 @@ if fetch_button and ticker_input:
             
             # Try to get Free Cash Flow
             if not cashflow.empty:
-                if 'Free Cash Flow' in cashflow.index:
-                    stock_data['free_cash_flow'] = cashflow.loc['Free Cash Flow'].iloc[0]
-                elif 'Operating Cash Flow' in cashflow.index:
-                    ocf = cashflow.loc['Operating Cash Flow'].iloc[0] if 'Operating Cash Flow' in cashflow.index else 0
-                    capex = cashflow.loc['Capital Expenditure'].iloc[0] if 'Capital Expenditure' in cashflow.index else 0
-                    stock_data['free_cash_flow'] = ocf + capex  # capex is negative
+                try:
+                    if 'Free Cash Flow' in cashflow.index:
+                        stock_data['free_cash_flow'] = cashflow.loc['Free Cash Flow'].iloc[0]
+                    elif 'Operating Cash Flow' in cashflow.index:
+                        ocf = cashflow.loc['Operating Cash Flow'].iloc[0] if 'Operating Cash Flow' in cashflow.index else 0
+                        capex = cashflow.loc['Capital Expenditure'].iloc[0] if 'Capital Expenditure' in cashflow.index else 0
+                        stock_data['free_cash_flow'] = ocf + capex  # capex is negative
+                except:
+                    pass
             
-            st.session_state.stock_data = stock_data
-            st.success(f"✅ Successfully fetched data for {ticker_input}")
+            # Validate we got minimum required data
+            if stock_data['current_price'] == 0 or stock_data['shares_outstanding'] == 0:
+                st.error("❌ Could not fetch complete data. The ticker might be invalid or Yahoo Finance is rate limiting.")
+                st.info("💡 **Tips to avoid rate limits:**\n"
+                       "- Wait 1-2 minutes before trying again\n"
+                       "- Try a different ticker\n"
+                       "- Use well-known tickers (AAPL, MSFT, GOOGL, NVDA)\n"
+                       "- Or manually enter data below:")
+                
+                # Manual input option
+                with st.expander("📝 Enter Data Manually"):
+                    st.markdown("If Yahoo Finance is rate limiting, you can enter the data manually:")
+                    manual_price = st.number_input("Current Price ($)", min_value=0.0, value=0.0, step=0.01)
+                    manual_shares = st.number_input("Shares Outstanding (Billions)", min_value=0.0, value=0.0, step=0.1)
+                    manual_fcf = st.number_input("Free Cash Flow ($B)", min_value=0.0, value=0.0, step=0.1)
+                    
+                    if st.button("Use Manual Data"):
+                        stock_data = {
+                            'ticker': ticker_input,
+                            'current_price': manual_price,
+                            'shares_outstanding': manual_shares * 1e9,
+                            'market_cap': manual_price * manual_shares * 1e9,
+                            'free_cash_flow': manual_fcf * 1e9,
+                            'revenue': 0,
+                            'net_income': 0,
+                            'total_debt': 0,
+                            'cash': 0,
+                            'company_name': ticker_input
+                        }
+                        st.session_state.stock_data = stock_data
+                        st.success("✅ Manual data loaded successfully!")
+                        st.rerun()
+            else:
+                st.session_state.stock_data = stock_data
+                st.success(f"✅ Successfully fetched data for {ticker_input}")
             
         except Exception as e:
-            st.error(f"❌ Error fetching data: {str(e)}")
-            st.info("Please check the ticker symbol and try again.")
+            error_msg = str(e)
+            if "429" in error_msg or "Rate" in error_msg or "Too Many" in error_msg:
+                st.error("❌ Yahoo Finance Rate Limit Reached")
+                st.warning("⏰ **Please wait 1-2 minutes** before fetching data again.\n\n"
+                          "Yahoo Finance limits the number of requests. This is common when many users access the same data.")
+                st.info("💡 **Alternative Options:**\n"
+                       "1. Wait a few minutes and try again\n"
+                       "2. Try a different, less popular ticker\n"
+                       "3. Use the manual data entry below")
+                
+                # Manual input option
+                with st.expander("📝 Enter Data Manually"):
+                    st.markdown("**Enter the financial data for your analysis:**")
+                    manual_ticker = ticker_input
+                    manual_price = st.number_input("Current Price ($)", min_value=0.0, value=0.0, step=0.01, key="manual_price")
+                    manual_shares = st.number_input("Shares Outstanding (Billions)", min_value=0.0, value=0.0, step=0.1, key="manual_shares")
+                    manual_fcf = st.number_input("Free Cash Flow ($B)", min_value=0.0, value=0.0, step=0.1, key="manual_fcf")
+                    
+                    if st.button("Use Manual Data", key="use_manual"):
+                        stock_data = {
+                            'ticker': manual_ticker,
+                            'current_price': manual_price,
+                            'shares_outstanding': manual_shares * 1e9,
+                            'market_cap': manual_price * manual_shares * 1e9,
+                            'free_cash_flow': manual_fcf * 1e9,
+                            'revenue': 0,
+                            'net_income': 0,
+                            'total_debt': 0,
+                            'cash': 0,
+                            'company_name': manual_ticker
+                        }
+                        st.session_state.stock_data = stock_data
+                        st.success("✅ Manual data loaded successfully!")
+                        st.rerun()
+            else:
+                st.error(f"❌ Error fetching data: {error_msg}")
+                st.info("Please check the ticker symbol and try again.")
 
 # Display stock data if available
 if st.session_state.stock_data:
