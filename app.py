@@ -82,6 +82,110 @@ st.title("📊 DCF Valuation Calculator (Enhanced)")
 st.markdown("---")
 
 # Helper Functions
+def calculate_wacc(stock_data, stock_obj=None):
+    """
+    Calculate WACC (Weighted Average Cost of Capital)
+    WACC = (E/V × Re) + (D/V × Rd × (1-Tax))
+    
+    Where:
+    - E = Market Cap (Equity)
+    - D = Total Debt
+    - V = E + D (Total Value)
+    - Re = Cost of Equity (from CAPM)
+    - Rd = Cost of Debt (Interest/Debt)
+    - Tax = Corporate Tax Rate
+    
+    Returns: (wacc, components_dict)
+    """
+    try:
+        # Get basic data
+        market_cap = stock_data.get('market_cap', 0)
+        total_debt = stock_data.get('total_debt', 0)
+        
+        if market_cap == 0:
+            return 0.10, {'method': 'default', 'reason': 'No market cap data'}
+        
+        # Default values
+        risk_free_rate = 0.045  # US 10-Year Treasury (4.5% as of 2025)
+        market_return = 0.10    # Historical S&P 500 return (~10%)
+        default_tax_rate = 0.21 # US Corporate Tax Rate
+        
+        components = {
+            'market_cap': market_cap,
+            'total_debt': total_debt,
+            'risk_free_rate': risk_free_rate,
+            'market_return': market_return
+        }
+        
+        # 1. Get Beta
+        beta = 1.0  # Default
+        if stock_obj:
+            try:
+                info = stock_obj.info
+                if 'beta' in info and info['beta']:
+                    beta = float(info['beta'])
+                    components['beta'] = beta
+            except:
+                pass
+        
+        # 2. Calculate Cost of Equity (CAPM)
+        # Re = Rf + β(Rm - Rf)
+        cost_of_equity = risk_free_rate + beta * (market_return - risk_free_rate)
+        components['cost_of_equity'] = cost_of_equity
+        
+        # 3. Calculate Cost of Debt
+        cost_of_debt = 0.05  # Default 5%
+        tax_rate = default_tax_rate
+        
+        if stock_obj and total_debt > 0:
+            try:
+                # Get Income Statement for Interest Expense
+                financials = stock_obj.financials
+                if not financials.empty:
+                    # Interest Expense
+                    if 'Interest Expense' in financials.index:
+                        interest_expense = abs(financials.loc['Interest Expense'].iloc[0])
+                        cost_of_debt = interest_expense / total_debt
+                        components['interest_expense'] = interest_expense
+                    
+                    # Tax Rate
+                    if 'Tax Provision' in financials.index and 'Pretax Income' in financials.index:
+                        tax_provision = financials.loc['Tax Provision'].iloc[0]
+                        pretax_income = financials.loc['Pretax Income'].iloc[0]
+                        if pretax_income > 0:
+                            tax_rate = tax_provision / pretax_income
+                            components['tax_rate'] = tax_rate
+            except:
+                pass
+        
+        components['cost_of_debt'] = cost_of_debt
+        components['tax_rate'] = tax_rate
+        
+        # 4. Calculate WACC
+        total_value = market_cap + total_debt
+        
+        if total_value == 0:
+            return 0.10, {'method': 'default', 'reason': 'Zero total value'}
+        
+        equity_weight = market_cap / total_value
+        debt_weight = total_debt / total_value
+        
+        wacc = (equity_weight * cost_of_equity) + (debt_weight * cost_of_debt * (1 - tax_rate))
+        
+        components['equity_weight'] = equity_weight
+        components['debt_weight'] = debt_weight
+        components['wacc'] = wacc
+        components['method'] = 'calculated'
+        
+        # Sanity check: WACC should be between 3% and 30%
+        if wacc < 0.03 or wacc > 0.30:
+            return 0.10, {'method': 'default', 'reason': f'WACC {wacc:.1%} out of reasonable range'}
+        
+        return wacc, components
+        
+    except Exception as e:
+        return 0.10, {'method': 'default', 'reason': f'Error: {str(e)}'}
+
 def bisection_solver(func, a, b, tol=1e-6, max_iter=100):
     """
     Bisection method to find root of function
@@ -218,6 +322,8 @@ with st.sidebar:
 # Initialize session state
 if 'stock_data' not in st.session_state:
     st.session_state.stock_data = None
+if 'wacc_data' not in st.session_state:
+    st.session_state.wacc_data = None
 
 # Fetch stock data
 if fetch_button and ticker_input:
@@ -310,11 +416,32 @@ if fetch_button and ticker_input:
                 'company_name': ticker_input
             }
             
+            # Calculate WACC
+            wacc_value, wacc_components = calculate_wacc(stock_data, stock)
+            
             if stock_data['current_price'] == 0:
                 st.error("❌ Could not fetch price data. Please enter manually below.")
             else:
                 st.session_state.stock_data = stock_data
+                st.session_state.wacc_data = {
+                    'wacc': wacc_value,
+                    'components': wacc_components
+                }
                 st.success(f"✅ Successfully fetched data for {ticker_input}")
+                
+                # Show WACC calculation
+                if wacc_components.get('method') == 'calculated':
+                    st.info(f"""
+                    📊 **WACC Calculated: {wacc_value*100:.2f}%**
+                    
+                    **Components:**
+                    - Cost of Equity (Re): {wacc_components.get('cost_of_equity', 0)*100:.2f}% (using CAPM with Beta={wacc_components.get('beta', 1.0):.2f})
+                    - Cost of Debt (Rd): {wacc_components.get('cost_of_debt', 0)*100:.2f}%
+                    - Tax Rate: {wacc_components.get('tax_rate', 0.21)*100:.1f}%
+                    - Equity Weight: {wacc_components.get('equity_weight', 0)*100:.1f}% | Debt Weight: {wacc_components.get('debt_weight', 0)*100:.1f}%
+                    """)
+                else:
+                    st.warning(f"⚠️ Using default WACC of 10% - {wacc_components.get('reason', 'Insufficient data')}")
             
         except Exception as e:
             st.error(f"❌ Error: {str(e)}")
@@ -370,6 +497,63 @@ if st.session_state.stock_data:
     
     st.markdown("---")
     
+    # WACC Breakdown (if available)
+    if st.session_state.wacc_data and st.session_state.wacc_data['components'].get('method') == 'calculated':
+        with st.expander("📊 WACC Calculation Details", expanded=False):
+            comp = st.session_state.wacc_data['components']
+            
+            col_w1, col_w2 = st.columns(2)
+            
+            with col_w1:
+                st.markdown("### Cost of Equity (CAPM)")
+                st.markdown(f"""
+                **Re = Rf + β × (Rm - Rf)**
+                
+                - Risk-free Rate (Rf): **{comp.get('risk_free_rate', 0.045)*100:.2f}%**
+                - Beta (β): **{comp.get('beta', 1.0):.2f}**
+                - Market Return (Rm): **{comp.get('market_return', 0.10)*100:.1f}%**
+                - **Cost of Equity = {comp.get('cost_of_equity', 0)*100:.2f}%**
+                """)
+                
+                st.markdown("### Capital Structure")
+                st.markdown(f"""
+                - Market Cap: **${comp.get('market_cap', 0)/1e9:.2f}B**
+                - Total Debt: **${comp.get('total_debt', 0)/1e9:.2f}B**
+                - Equity Weight: **{comp.get('equity_weight', 0)*100:.1f}%**
+                - Debt Weight: **{comp.get('debt_weight', 0)*100:.1f}%**
+                """)
+            
+            with col_w2:
+                st.markdown("### Cost of Debt")
+                if 'interest_expense' in comp:
+                    st.markdown(f"""
+                    **Rd = Interest Expense / Total Debt**
+                    
+                    - Interest Expense: **${comp.get('interest_expense', 0)/1e9:.2f}B**
+                    - Total Debt: **${comp.get('total_debt', 0)/1e9:.2f}B**
+                    - **Cost of Debt = {comp.get('cost_of_debt', 0)*100:.2f}%**
+                    """)
+                else:
+                    st.markdown(f"""
+                    - **Cost of Debt = {comp.get('cost_of_debt', 0)*100:.2f}%** (estimated)
+                    """)
+                
+                st.markdown("### Tax Effect")
+                st.markdown(f"""
+                - Tax Rate: **{comp.get('tax_rate', 0.21)*100:.1f}%**
+                - After-tax Cost of Debt: **{comp.get('cost_of_debt', 0)*(1-comp.get('tax_rate', 0.21))*100:.2f}%**
+                """)
+                
+                st.markdown("---")
+                st.markdown(f"""
+                ### 🎯 Final WACC
+                **WACC = {comp.get('wacc', 0)*100:.2f}%**
+                
+                = ({comp.get('equity_weight', 0)*100:.1f}% × {comp.get('cost_of_equity', 0)*100:.2f}%) + ({comp.get('debt_weight', 0)*100:.1f}% × {comp.get('cost_of_debt', 0)*(1-comp.get('tax_rate', 0.21))*100:.2f}%)
+                """)
+    
+    st.markdown("---")
+    
     # Tabs
     tab1, tab2, tab3 = st.tabs(["🔄 Reverse DCF", "📈 Fundamental DCF", "📊 Sensitivity Analysis"])
     
@@ -378,11 +562,23 @@ if st.session_state.stock_data:
         st.header("Reverse DCF Analysis")
         st.caption("What growth rate is implied by the current market price?")
         
+        # Get calculated WACC or use default
+        default_wacc = 10.0
+        if st.session_state.wacc_data:
+            default_wacc = st.session_state.wacc_data['wacc'] * 100
+        
         col_r1, col_r2 = st.columns(2)
         with col_r1:
             term_growth_rev = st.number_input("Terminal Growth (%)", 0.0, 10.0, 2.5, 0.1, key="tg_rev")
         with col_r2:
-            wacc_rev = st.number_input("WACC (%)", 1.0, 30.0, 10.0, 0.5, key="wacc_rev")
+            wacc_rev = st.number_input(
+                "WACC (%)", 
+                1.0, 30.0, 
+                default_wacc, 
+                0.5, 
+                key="wacc_rev",
+                help="Weighted Average Cost of Capital - calculated from company data"
+            )
         
         # Validation
         wacc_decimal = wacc_rev / 100
@@ -463,10 +659,22 @@ if st.session_state.stock_data:
         st.header("Fundamental DCF Valuation")
         st.caption("Calculate Intrinsic Value (Equity Value per Share)")
         
+        # Get calculated WACC or use default
+        default_wacc_fund = 10.0
+        if st.session_state.wacc_data:
+            default_wacc_fund = st.session_state.wacc_data['wacc'] * 100
+        
         col_f1, col_f2, col_f3 = st.columns(3)
         with col_f1: growth_rate = st.number_input("Growth Rate (%)", -50.0, 100.0, 15.0, 1.0)
         with col_f2: terminal_growth = st.number_input("Terminal Growth (%)", 0.0, 10.0, 2.5, 0.1, key="tg_fund")
-        with col_f3: wacc = st.number_input("WACC (%)", 1.0, 30.0, 10.0, 0.5, key="wacc_fund")
+        with col_f3: wacc = st.number_input(
+            "WACC (%)", 
+            1.0, 30.0, 
+            default_wacc_fund, 
+            0.5, 
+            key="wacc_fund",
+            help="Weighted Average Cost of Capital - calculated from company data"
+        )
         
         # Validation
         if wacc/100 <= terminal_growth/100:
@@ -627,9 +835,21 @@ if st.session_state.stock_data:
         st.header("📊 Sensitivity Analysis")
         st.caption("How does the implied growth rate change with different assumptions?")
         
+        # Get calculated WACC or use default
+        default_wacc_sens = 10.0
+        if st.session_state.wacc_data:
+            default_wacc_sens = st.session_state.wacc_data['wacc'] * 100
+        
         col_s1, col_s2 = st.columns(2)
         with col_s1:
-            base_wacc_sens = st.number_input("Base WACC (%)", 1.0, 30.0, 10.0, 0.5, key="wacc_sens")
+            base_wacc_sens = st.number_input(
+                "Base WACC (%)", 
+                1.0, 30.0, 
+                default_wacc_sens, 
+                0.5, 
+                key="wacc_sens",
+                help="Weighted Average Cost of Capital - calculated from company data"
+            )
         with col_s2:
             base_term_sens = st.number_input("Base Terminal Growth (%)", 0.0, 10.0, 2.5, 0.1, key="tg_sens")
         
