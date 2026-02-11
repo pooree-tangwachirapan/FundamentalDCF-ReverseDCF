@@ -881,59 +881,62 @@ if st.session_state.stock_data:
                 """)
                 
                 # Heatmap visualization
-                pivot_data = []
-                wacc_values = sorted(sens_df['WACC'].unique())
-                term_values = sorted(sens_df['Terminal'].unique())
-                
-                for wacc in wacc_values:
-                    row = []
-                    for term in term_values:
-                        match = sens_df[(sens_df['WACC'] == wacc) & (sens_df['Terminal'] == term)]
-                        if not match.empty:
-                            growth_str = match['Implied Growth'].values[0]
-                            growth_val = float(growth_str.replace('%', ''))
-                            row.append(growth_val)
-                    if row:
-                        pivot_data.append(row)
-                
-                if pivot_data:
-                    fig = go.Figure(data=go.Heatmap(
-                        z=pivot_data,
-                        x=[t.replace('%', '') for t in term_values],
-                        y=[w.replace('%', '') for w in wacc_values],
-                        colorscale='RdYlGn',
-                        text=pivot_data,
-                        texttemplate='%{text:.1f}%',
-                        textfont={"size": 11, "color": "white"},
-                        colorbar=dict(
-                            title="Growth %",
-                            titlefont=dict(size=12),
-                            tickfont=dict(size=11)
-                        ),
-                        hovertemplate='WACC: %{y}%<br>Terminal: %{x}%<br>Growth: %{z:.1f}%<extra></extra>'
-                    ))
-                    fig.update_layout(
-                        title=dict(
-                            text="Sensitivity Heatmap: Implied Growth Rate",
-                            font=dict(size=18)
-                        ),
-                        xaxis_title="Terminal Growth Rate (%)",
-                        yaxis_title="WACC (%)",
-                        height=500,
-                        template="plotly_dark",
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        plot_bgcolor='rgba(0,0,0,0)',
-                        font=dict(size=12),
-                        xaxis=dict(
-                            tickfont=dict(size=11),
-                            titlefont=dict(size=13)
-                        ),
-                        yaxis=dict(
-                            tickfont=dict(size=11),
-                            titlefont=dict(size=13)
+                try:
+                    pivot_data = []
+                    wacc_values = sorted(sens_df['WACC'].unique())
+                    term_values = sorted(sens_df['Terminal'].unique())
+                    
+                    for wacc in wacc_values:
+                        row = []
+                        for term in term_values:
+                            match = sens_df[(sens_df['WACC'] == wacc) & (sens_df['Terminal'] == term)]
+                            if not match.empty:
+                                growth_str = match['Implied Growth'].values[0]
+                                growth_val = float(growth_str.replace('%', ''))
+                                row.append(growth_val)
+                        if row:
+                            pivot_data.append(row)
+                    
+                    if pivot_data:
+                        fig = go.Figure(data=go.Heatmap(
+                            z=pivot_data,
+                            x=[t.replace('%', '') for t in term_values],
+                            y=[w.replace('%', '') for w in wacc_values],
+                            colorscale='RdYlGn',
+                            text=pivot_data,
+                            texttemplate='%{text:.1f}%',
+                            textfont=dict(size=11, color="white"),
+                            hovertemplate='WACC: %{y}%<br>Terminal: %{x}%<br>Growth: %{z:.1f}%<extra></extra>'
+                        ))
+                        fig.update_layout(
+                            title=dict(
+                                text="Sensitivity Heatmap: Implied Growth Rate",
+                                font=dict(size=18)
+                            ),
+                            xaxis_title="Terminal Growth Rate (%)",
+                            yaxis_title="WACC (%)",
+                            height=500,
+                            template="plotly_dark",
+                            paper_bgcolor='rgba(0,0,0,0)',
+                            plot_bgcolor='rgba(0,0,0,0)',
+                            font=dict(size=12),
+                            xaxis=dict(
+                                tickfont=dict(size=11),
+                                titlefont=dict(size=13)
+                            ),
+                            yaxis=dict(
+                                tickfont=dict(size=11),
+                                titlefont=dict(size=13)
+                            )
                         )
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
+                        # Update colorbar separately to avoid issues
+                        fig.update_traces(
+                            colorbar=dict(title="Growth %")
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+                except Exception as e:
+                    st.error(f"Could not generate heatmap: {str(e)}")
+                    st.info("The sensitivity table above still shows all the results.")
 
 else:
     st.info("👈 Enter a stock ticker in the sidebar to begin analysis.")
