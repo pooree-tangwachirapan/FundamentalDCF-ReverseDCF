@@ -9,6 +9,7 @@ from scipy.optimize import brentq, OptimizeWarning
 import warnings
 
 # Page configuration
+
 st.set_page_config(
     page_title="DCF Valuation Calculator",
     page_icon="📊",
@@ -16,6 +17,12 @@ st.set_page_config(
 )
 
 # Custom CSS
+fig.update_layout(
+    template="plotly_dark",
+    paper_bgcolor='rgba(0,0,0,0)',  # พื้นหลังโปร่งใส
+    plot_bgcolor='rgba(0,0,0,0)',   # พื้นกราฟโปร่งใส
+    font=dict(color="white", size=12)
+)
 st.markdown("""
     <style>
     .main {
@@ -33,26 +40,7 @@ st.markdown("""
         color: white;
         margin: 1rem 0;
     }
-  .stMetric,
-.stApp[data-theme="dark"] [data-testid="stMetric"]{
-    background-color: #f0f2f6 !important; /* ถ้าต้องการให้กล่องยังเป็นสีอ่อนเหมือนเดิม */
-}
-
-/* ทำสีข้อความใน metric เป็นดำ */
-.stApp[data-theme="dark"] .stMetric label,
-.stApp[data-theme="dark"] .stMetric div,
-.stApp[data-theme="dark"] [data-testid="stMetricLabel"],
-.stApp[data-theme="dark"] [data-testid="stMetricValue"],
-.stApp[data-theme="dark"] [data-testid="stMetricDelta"]{
-    color: #000000 !important;
-}
-
-/* บางเวอร์ชันตัวเลขถูกครอบด้วย span อีกชั้น */
-.stApp[data-theme="dark"] [data-testid="stMetricValue"] span,
-.stApp[data-theme="dark"] [data-testid="stMetricDelta"] span{
-    color: #000000 !important;
-}
-    </style>
+      </style>
 """, unsafe_allow_html=True)
 
 # Title
@@ -621,5 +609,6 @@ else:
     - WACC typically ranges from 8-15% for most companies
     - Terminal growth is usually 2-3% (GDP growth rate)
     """)
+
 
 
