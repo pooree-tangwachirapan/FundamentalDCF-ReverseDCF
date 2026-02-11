@@ -913,21 +913,19 @@ if st.session_state.stock_data:
                                 text="Sensitivity Heatmap: Implied Growth Rate",
                                 font=dict(size=18)
                             ),
-                            xaxis_title="Terminal Growth Rate (%)",
-                            yaxis_title="WACC (%)",
+                            xaxis=dict(
+                                title=dict(text="Terminal Growth Rate (%)", font=dict(size=13)),
+                                tickfont=dict(size=11)
+                            ),
+                            yaxis=dict(
+                                title=dict(text="WACC (%)", font=dict(size=13)),
+                                tickfont=dict(size=11)
+                            ),
                             height=500,
                             template="plotly_dark",
                             paper_bgcolor='rgba(0,0,0,0)',
                             plot_bgcolor='rgba(0,0,0,0)',
-                            font=dict(size=12),
-                            xaxis=dict(
-                                tickfont=dict(size=11),
-                                titlefont=dict(size=13)
-                            ),
-                            yaxis=dict(
-                                tickfont=dict(size=11),
-                                titlefont=dict(size=13)
-                            )
+                            font=dict(size=12)
                         )
                         # Update colorbar separately to avoid issues
                         fig.update_traces(
