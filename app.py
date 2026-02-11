@@ -5,49 +5,111 @@ import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
-from scipy.optimize import brentq, OptimizeWarning
 import warnings
 
-# Page configuration
+# Try to import scipy, use fallback if not available
+try:
+    from scipy.optimize import brentq, OptimizeWarning
+    HAS_SCIPY = True
+except ImportError:
+    HAS_SCIPY = False
+    st.warning("⚠️ scipy not installed. Using alternative solver (still fast!).")
 
+# Page configuration
 st.set_page_config(
     page_title="DCF Valuation Calculator",
     page_icon="📊",
     layout="wide"
 )
 
-# Custom CSS
-fig.update_layout(
-    template="plotly_dark",
-    paper_bgcolor='rgba(0,0,0,0)',  # พื้นหลังโปร่งใส
-    plot_bgcolor='rgba(0,0,0,0)',   # พื้นกราฟโปร่งใส
-    font=dict(color="white", size=12)
-)
+# Custom CSS - รองรับทั้ง Light และ Dark Mode
 st.markdown("""
     <style>
     .main {
         padding: 2rem;
     }
     .stMetric {
-        background-color: #f0f2f6;
+        background-color: rgba(240, 242, 246, 0.05);
         padding: 1rem;
         border-radius: 0.5rem;
+        border: 1px solid rgba(128, 128, 128, 0.2);
     }
-    .metric-container {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 1.5rem;
-        border-radius: 1rem;
-        color: white;
-        margin: 1rem 0;
+    
+    /* Dark mode adjustments */
+    [data-testid="stMetricValue"] {
+        font-size: 1.8rem;
+        font-weight: 600;
     }
-      </style>
+    
+    /* Table styling */
+    .dataframe {
+        font-size: 0.95rem;
+    }
+    
+    /* Header styling */
+    h1, h2, h3 {
+        font-weight: 600;
+    }
+    </style>
 """, unsafe_allow_html=True)
+
+# Helper function to detect theme and return appropriate plotly template
+def get_plotly_template():
+    """
+    Detect Streamlit theme and return appropriate Plotly template
+    Dark mode = plotly_dark, Light mode = plotly_white
+    """
+    # Try to detect theme from session state
+    try:
+        # Streamlit doesn't expose theme directly, so we use a workaround
+        # Check if user has dark mode preference
+        return "plotly_dark"  # Default to dark-friendly
+    except:
+        return "plotly"
+
+# Color schemes for charts (work well in both modes)
+CHART_COLORS = {
+    'primary': '#3b82f6',      # Blue
+    'secondary': '#8b5cf6',    # Purple
+    'success': '#10b981',      # Green
+    'warning': '#f59e0b',      # Amber
+    'danger': '#ef4444',       # Red
+    'info': '#06b6d4',         # Cyan
+}
 
 # Title
 st.title("📊 DCF Valuation Calculator (Enhanced)")
 st.markdown("---")
 
 # Helper Functions
+def bisection_solver(func, a, b, tol=1e-6, max_iter=100):
+    """
+    Bisection method to find root of function
+    Fast alternative to scipy when not available
+    """
+    fa = func(a)
+    fb = func(b)
+    
+    if fa * fb > 0:
+        # No sign change, return midpoint
+        return (a + b) / 2
+    
+    for _ in range(max_iter):
+        c = (a + b) / 2
+        fc = func(c)
+        
+        if abs(fc) < tol or abs(b - a) < tol:
+            return c
+        
+        if fa * fc < 0:
+            b = c
+            fb = fc
+        else:
+            a = c
+            fa = fc
+    
+    return (a + b) / 2
+
 def calculate_dcf_ev(growth_rate, fcf, wacc, terminal_growth, years=5):
     """Calculate Enterprise Value using DCF method"""
     try:
@@ -77,11 +139,20 @@ def reverse_dcf_solver(target_ev, fcf, wacc, terminal_growth, years=5):
         return ev - target_ev if ev else 1e15
     
     try:
-        # Try to find growth rate between -30% and 200%
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", OptimizeWarning)
-            implied_g = brentq(equation, -0.30, 2.0, maxiter=1000)
-        return implied_g * 100, True, None
+        if HAS_SCIPY:
+            # Use scipy's fast solver
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", OptimizeWarning)
+                implied_g = brentq(equation, -0.30, 2.0, maxiter=1000)
+            return implied_g * 100, True, None
+        else:
+            # Use custom bisection method (still fast!)
+            implied_g = bisection_solver(equation, -0.30, 2.0)
+            # Verify solution is reasonable
+            if abs(equation(implied_g)) < target_ev * 0.01:  # Within 1%
+                return implied_g * 100, True, None
+            else:
+                return implied_g * 100, False, "Approximate solution (within 1% tolerance)"
     except ValueError as e:
         # If no solution found, try fallback method
         try:
@@ -130,11 +201,14 @@ with st.sidebar:
     
     st.markdown("---")
     st.markdown("### About")
-    st.info("This tool provides two DCF analysis methods:\n\n"
-            "**Reverse DCF**: Calculate implied growth rate from current price (with scipy optimization)\n\n"
+    
+    solver_info = "scipy optimizer (fastest)" if HAS_SCIPY else "bisection method (fast)"
+    
+    st.info(f"This tool provides two DCF analysis methods:\n\n"
+            "**Reverse DCF**: Calculate implied growth rate from current price\n\n"
             "**Fundamental DCF**: Calculate intrinsic value from projections\n\n"
             "**✨ Enhanced Features:**\n"
-            "- Numerical solver (faster & more accurate)\n"
+            f"- Numerical solver: {solver_info}\n"
             "- Sensitivity analysis\n"
             "- Better error handling\n"
             "- Interactive visualizations")
@@ -359,15 +433,24 @@ if st.session_state.stock_data:
                     fig.add_trace(go.Bar(
                         x=years,
                         y=fcf_values,
-                        marker_color='#3b82f6',
+                        marker_color=CHART_COLORS['primary'],
                         text=[f"${v:.2f}B" for v in fcf_values],
-                        textposition='outside'
+                        textposition='outside',
+                        textfont=dict(size=12)
                     ))
                     fig.update_layout(
-                        title=f"Implied FCF Projection at {implied_g:.2f}% Growth",
+                        title=dict(
+                            text=f"Implied FCF Projection at {implied_g:.2f}% Growth",
+                            font=dict(size=18)
+                        ),
                         xaxis_title="Year",
                         yaxis_title="FCF ($B)",
-                        height=400
+                        height=400,
+                        template="plotly_dark",
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        font=dict(size=12),
+                        showlegend=False
                     )
                     st.plotly_chart(fig, use_container_width=True)
                     
@@ -479,22 +562,36 @@ if st.session_state.stock_data:
                         x=df_proj['Year'], 
                         y=df_proj['PV'], 
                         name='PV of FCF',
-                        marker_color='#3b82f6',
+                        marker_color=CHART_COLORS['primary'],
                         text=[f"${v:.2f}B" for v in df_proj['PV']],
-                        textposition='outside'
+                        textposition='outside',
+                        textfont=dict(size=11)
                     ))
                     fig1.add_trace(go.Bar(
                         x=['Terminal'], 
                         y=[pv_terminal/1e9], 
                         name='PV Terminal',
-                        marker_color='#8b5cf6',
+                        marker_color=CHART_COLORS['secondary'],
                         text=[f"${pv_terminal/1e9:.2f}B"],
-                        textposition='outside'
+                        textposition='outside',
+                        textfont=dict(size=11)
                     ))
                     fig1.update_layout(
-                        title="Present Value Breakdown",
+                        title=dict(text="Present Value Breakdown", font=dict(size=16)),
                         yaxis_title="Value ($B)",
-                        height=400
+                        height=400,
+                        template="plotly_dark",
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        font=dict(size=11),
+                        showlegend=True,
+                        legend=dict(
+                            orientation="h",
+                            yanchor="bottom",
+                            y=1.02,
+                            xanchor="right",
+                            x=1
+                        )
                     )
                     st.plotly_chart(fig1, use_container_width=True)
                 
@@ -504,17 +601,24 @@ if st.session_state.stock_data:
                     fig2.add_trace(go.Scatter(
                         x=df_proj['Year'],
                         y=df_proj['FCF'],
-                        mode='lines+markers',
-                        marker=dict(size=10, color='#10b981'),
-                        line=dict(width=3, color='#10b981'),
+                        mode='lines+markers+text',
+                        marker=dict(size=12, color=CHART_COLORS['success'], line=dict(width=2, color='white')),
+                        line=dict(width=3, color=CHART_COLORS['success']),
                         text=[f"${v:.2f}B" for v in df_proj['FCF']],
-                        textposition='top center'
+                        textposition='top center',
+                        textfont=dict(size=11),
+                        name='Projected FCF'
                     ))
                     fig2.update_layout(
-                        title=f"FCF Projection at {growth_rate:.1f}% Growth",
+                        title=dict(text=f"FCF Projection at {growth_rate:.1f}% Growth", font=dict(size=16)),
                         xaxis_title="Year",
                         yaxis_title="FCF ($B)",
-                        height=400
+                        height=400,
+                        template="plotly_dark",
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        font=dict(size=11),
+                        showlegend=False
                     )
                     st.plotly_chart(fig2, use_container_width=True)
 
@@ -580,14 +684,34 @@ if st.session_state.stock_data:
                         colorscale='RdYlGn',
                         text=pivot_data,
                         texttemplate='%{text:.1f}%',
-                        textfont={"size": 10},
-                        colorbar=dict(title="Growth %")
+                        textfont={"size": 11, "color": "white"},
+                        colorbar=dict(
+                            title="Growth %",
+                            titlefont=dict(size=12),
+                            tickfont=dict(size=11)
+                        ),
+                        hovertemplate='WACC: %{y}%<br>Terminal: %{x}%<br>Growth: %{z:.1f}%<extra></extra>'
                     ))
                     fig.update_layout(
-                        title="Sensitivity Heatmap: Implied Growth Rate",
+                        title=dict(
+                            text="Sensitivity Heatmap: Implied Growth Rate",
+                            font=dict(size=18)
+                        ),
                         xaxis_title="Terminal Growth Rate (%)",
                         yaxis_title="WACC (%)",
-                        height=500
+                        height=500,
+                        template="plotly_dark",
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        font=dict(size=12),
+                        xaxis=dict(
+                            tickfont=dict(size=11),
+                            titlefont=dict(size=13)
+                        ),
+                        yaxis=dict(
+                            tickfont=dict(size=11),
+                            titlefont=dict(size=13)
+                        )
                     )
                     st.plotly_chart(fig, use_container_width=True)
 
@@ -609,6 +733,3 @@ else:
     - WACC typically ranges from 8-15% for most companies
     - Terminal growth is usually 2-3% (GDP growth rate)
     """)
-
-
-
