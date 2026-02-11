@@ -33,19 +33,18 @@ st.markdown("""
         color: white;
         margin: 1rem 0;
     }
-    /* ===== Dark theme only ===== */
-    .stApp[data-theme="dark"] .stMetric,
-    .stApp[data-theme="dark"] [data-testid="stMetric"]{
+  .stMetric,
+.stApp[data-theme="dark"] [data-testid="stMetric"]{
     background-color: #f0f2f6 !important; /* ถ้าต้องการให้กล่องยังเป็นสีอ่อนเหมือนเดิม */
-    }
+}
 
-    /* ทำสีข้อความใน metric เป็นดำ */
-    .stApp[data-theme="dark"] .stMetric label,
-    .stApp[data-theme="dark"] .stMetric div,
-    .stApp[data-theme="dark"] [data-testid="stMetricLabel"],
-    .stApp[data-theme="dark"] [data-testid="stMetricValue"],
-    .stApp[data-theme="dark"] [data-testid="stMetricDelta"]{
-        color: #000000 !important;
+/* ทำสีข้อความใน metric เป็นดำ */
+.stApp[data-theme="dark"] .stMetric label,
+.stApp[data-theme="dark"] .stMetric div,
+.stApp[data-theme="dark"] [data-testid="stMetricLabel"],
+.stApp[data-theme="dark"] [data-testid="stMetricValue"],
+.stApp[data-theme="dark"] [data-testid="stMetricDelta"]{
+    color: #000000 !important;
 }
 
 /* บางเวอร์ชันตัวเลขถูกครอบด้วย span อีกชั้น */
@@ -622,4 +621,5 @@ else:
     - WACC typically ranges from 8-15% for most companies
     - Terminal growth is usually 2-3% (GDP growth rate)
     """)
+
 
